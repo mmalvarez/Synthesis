@@ -3,6 +3,7 @@ Require Import Common.
 Require Import DList. 
 Require Word Vector. 
 
+Require Import compile.source.
 
 Unset Elimination Schemes. 
 
@@ -12,13 +13,15 @@ Inductive type : Type :=
 | Tunit : type 
 | Tbool: type 
 | Tint: forall (n : nat), type
-| Ttuple : forall l : list type,  type. 
+| Ttuple : forall l : list type,  type
+| Tfloat : type.
 
 (** Notations used in the paper  *)
 Notation Unit := Tunit.         
 Notation B  := Tbool. 
 Notation Int n := (Tint n).
-Notation Tuple l := (Ttuple l). 
+Notation Tuple l := (Ttuple l).
+Notation Float := Tfloat.
 
 Section type_ind. 
   Variable P : type -> Prop. 
@@ -26,7 +29,8 @@ Section type_ind.
   Variable Hbool : P Tbool. 
   Variable Hint  : forall n, P (Tint n).
   Variable Hnil  : P (Ttuple []). 
-  Variable Hcons  : forall t q, P t -> P (Ttuple q) -> P (Ttuple (t :: q)). 
+  Variable Hcons  : forall t q, P t -> P (Ttuple q) -> P (Ttuple (t :: q)).
+  Variable Hfloat : P Tfloat.
 
   Definition type_ind (t : type) : P t. 
   refine (let ind := fix ind t : P t :=
@@ -34,6 +38,7 @@ Section type_ind.
                 | Tunit => Hunit
                 | Tbool => Hbool
                 | Tint n => Hint n
+                | Tfloat => Hfloat
                 | Ttuple l => 
                     let fix fold l : P (Ttuple l) :=
                         match l with 
@@ -50,8 +55,9 @@ Set Elimination Schemes.
 Fixpoint eval_type st : Type := 
   match st with 
     | Tunit => unit
-    | Tbool => bool
+    | Tbool => bool                
     | Tint n => Word.T n
+    | Tfloat => source.float
     | Ttuple l => Tuple.of_list eval_type l
   end.    
 
@@ -70,7 +76,8 @@ refine (let fix fold a b {struct a}: bool :=
               match a,b with
                 | Tunit, Tunit => true
                 | Tbool, Tbool => true
-                | Tint n,  Tint m => Nat.eqb n m 
+                | Tint n,  Tint m => Nat.eqb n m
+                | Tfloat, Tfloat => true
                 | Ttuple x, Ttuple y => pointwise x y
                 | _ , _ => false
               end in fold      
@@ -124,12 +131,28 @@ Section type_ops.
       | false, false => true
       | _,_ => false
     end. 
-  
+
+  Require Import Fappli_IEEE_extra.
+  Definition eqb_float (f1 f2 : float) : bool :=
+    match (Beq_dec prec emax f1 f2) with
+    | left _ => true
+    | right _ => false
+    end.
+
+  Lemma eqb_float_correct :
+    forall (f1 f2 : float), eqb_float f1 f2 = true -> f1 = f2.
+  Proof.
+    intros.
+    unfold eqb_float in H.
+    destruct (Beq_dec prec emax f1 f2); auto; discriminate.
+  Qed.
+    
   Fixpoint type_eq (t : type) : eval_type t -> eval_type t -> bool :=
     match t with 
       | Tunit => fun _ _  => true
       | Tint n => @Word.eqb n
-      | Tbool  => eqb_bool 
+      | Tbool  => eqb_bool
+      | Tfloat => eqb_float
       | Ttuple l => fun _ _ => false
     end. 
   
@@ -138,7 +161,8 @@ Section type_ops.
     destruct x; destruct y; auto. 
     destruct x; destruct y; auto. 
     intros. apply Word.eqb_correct; auto.  
-    discriminate. 
+    discriminate.
+    apply eqb_float_correct; auto.
   Qed. 
 End type_ops. 
 
@@ -165,7 +189,8 @@ Notation signature := (Generics.signature type eval_type).
 Notation constant := (@Generics.constant type eval_type). 
 
 Definition Cbool b : constant Tbool := b. 
-Definition Cword {n} x : constant (Tint n) := (Word.repr _ x). 
+Definition Cword {n} x : constant (Tint n) := (Word.repr _ x).
+Definition Cfloat f : constant Tfloat := f.
 
 (** The definition of state elements. *)
 Inductive mem : Type :=
