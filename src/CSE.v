@@ -51,13 +51,20 @@ Section s.
   | Slow : forall n m : nat, sval (Int (n + m)) -> sval (Int n)
   | Shigh : forall n m : nat, sval (Int (n + m)) -> sval (Int m)
   | ScombineLH : forall n m : nat,
-                 sval (Int n) -> sval (Int m) -> sval (Int (n + m)). 
+      sval (Int n) -> sval (Int m) -> sval (Int (n + m))
+  | Sflt : sval Float -> sval Float -> sval B
+  | Sfle : sval Float -> sval Float -> sval B
+  | Sfadd : sval Float -> sval Float -> sval Float
+  | Sfsub : sval Float -> sval Float -> sval Float
+  | Sfmul : sval Float -> sval Float -> sval Float
+  . 
 
   Arguments STuple {l}%list _%dlist. 
 
 
   
-  Section eval. 
+  Section eval.
+    Require Import source.
     Variable env: list ({t : type & eval_type t}). 
     (** [eval_sval env sv] computes the denotation of [sv] in the environment [env] *)
     Fixpoint eval_sval {t} ( sv : sval t)   : option (eval_type t) :=
@@ -117,6 +124,21 @@ Section s.
           | ScombineLH n m a b => do a <- eval_sval a; 
                                  do b <- eval_sval b; 
                                  Some (@Word.combineLH n m a b)
+          | Sflt a b => do a <- eval_sval a;
+                        do b <- eval_sval b;
+                        Some (float_lt a b)
+          | Sfle a b => do a <- eval_sval a;
+                        do b <- eval_sval b;
+                        Some (float_le a b)
+          | Sfadd a b => do a <- eval_sval a;
+                         do b <- eval_sval b;
+                         Some (float_plus a b)
+          | Sfsub a b => do a <- eval_sval a;
+                         do b <- eval_sval b;
+                         Some (float_minus a b)
+          | Sfmul a b => do a <- eval_sval a;
+                         do b <- eval_sval b;
+                         Some (float_mult a b)
         end.
   End eval. 
 
@@ -135,8 +157,9 @@ Section s.
   
   Notation V := (fun t => Var t * sval t)%type. 
   
-  Notation "!!" := (None). 
-  Reserved Notation "x == y" (at level 30). 
+  Notation "!!" := (None).
+  (* TODO - what's going on with these conflicting notations amirite --M *)
+  Reserved Notation "x =-= y" (at level 30).
   
   (** The crux of this optimisation pass is the definition of the
   equivalence relation on symbolic values. Here we took a conservative
@@ -160,34 +183,38 @@ Section s.
         | SConstant ta ca, SConstant tb cb =>
             match type_cast tb ca with | Some ca =>  type_eq tb ca cb | None => false end
         | SMux ta ca la ra, SMux tb cb lb rb => 
-            type_eqb ta tb && (ca == cb && la == lb && ra == rb)
+            type_eqb ta tb && (ca =-= cb && la =-= lb && ra =-= rb)
         | STuple la dla, STuple lb dlb => pointwise dla dlb
-        | Sandb a1 b1, Sandb a2 b2 => a1 ==  a2 && b1 == b2
-        | Sorb  a1 b1, Sorb a2 b2 => a1 ==  a2 && b1 == b2
-        | Sxorb a1 b1, Sxorb a2 b2 => a1 ==  a2 && b1 == b2
-        | Snegb a1 , Snegb a2 => a1 ==  a2
+        | Sandb a1 b1, Sandb a2 b2 => a1 =-=  a2 && b1 =-= b2
+        | Sorb  a1 b1, Sorb a2 b2 => a1 =-=  a2 && b1 =-= b2
+        | Sxorb a1 b1, Sxorb a2 b2 => a1 =-=  a2 && b1 =-= b2
+        | Snegb a1 , Snegb a2 => a1 =-=  a2
         | Seq t1 a1 b1, Seq t2 a2 b2 => 
-            type_eqb t1 t2 && (a1 == a2 && b1 == b2)          
+            type_eqb t1 t2 && (a1 =-= a2 && b1 =-= b2)          
         | Slt n1 a1 b1, Slt n2 a2 b2 => 
-          NPeano.Nat.eqb n1 n2 && (a1 == a2 && b1 == b2)          
+          NPeano.Nat.eqb n1 n2 && (a1 =-= a2 && b1 =-= b2)          
         | Sle n1 a1 b1, Sle n2 a2 b2 => 
-          NPeano.Nat.eqb n1 n2 && (a1 == a2 && b1 == b2)          
+          NPeano.Nat.eqb n1 n2 && (a1 =-= a2 && b1 =-= b2)          
         | Sadd n1 a1 b1, Sadd n2 a2 b2 => 
-          NPeano.Nat.eqb n1 n2 && (a1 == a2 && b1 == b2)          
+          NPeano.Nat.eqb n1 n2 && (a1 =-= a2 && b1 =-= b2)          
         | Ssub n1 a1 b1, Ssub n2 a2 b2 => 
-          NPeano.Nat.eqb n1 n2 && (a1 == a2 && b1 == b2)          
+          NPeano.Nat.eqb n1 n2 && (a1 =-= a2 && b1 =-= b2)          
         | Slow n1 m1 a1, Slow n2 m2 a2 => 
-          NPeano.Nat.eqb n1 n2 &&  NPeano.Nat.eqb m1 m2 && (a1 == a2)
+          NPeano.Nat.eqb n1 n2 &&  NPeano.Nat.eqb m1 m2 && (a1 =-= a2)
         | Shigh n1 m1 a1, Shigh n2 m2 a2 => 
-          NPeano.Nat.eqb n1 n2 &&  NPeano.Nat.eqb m1 m2 && (a1 == a2)
+          NPeano.Nat.eqb n1 n2 &&  NPeano.Nat.eqb m1 m2 && (a1 =-= a2)
         | ScombineLH n1 m1 a1 b1, ScombineLH n2 m2 a2 b2 => 
-          NPeano.Nat.eqb n1 n2 &&  NPeano.Nat.eqb m1 m2 && (a1 == a2) && b1 == b2
-                                                                                 
+          NPeano.Nat.eqb n1 n2 &&  NPeano.Nat.eqb m1 m2 && (a1 =-= a2) && b1 =-= b2
+        | Sflt a1 b1, Sflt a2 b2 => (a1 =-= a2) && (b1 =-= b2)
+        | Sfle a1 b1, Sfle a2 b2 => (a1 =-= a2) && (b1 =-= b2)
+        | Sfadd a1 b1, Sfadd a2 b2 => (a1 =-= a2) && (b1 =-= b2)
+        | Sfsub a1 b1, Sfsub a2 b2 => (a1 =-= a2) && (b1 =-= b2)
+        | Sfmul a1 b1, Sfmul a2 b2 => (a1 =-= a2) && (b1 =-= b2)
         (** We may check for more equivalences here, like [Slow 0 n x == x],
          but we refrain to do so for now, because it complicates the sval_eqb a lot *)
 
         | _, _ => false
-      end%bool where "n == m" := (sval_eqb n m). 
+      end%bool where "n =-= m" := (sval_eqb n m). 
   
   (** The actual implementation of cse on expressions. Recall that
   expressions are in a 3-adress code like representation (that is, all
@@ -218,6 +245,11 @@ Section s.
         | Elow n m a => (Elow _ _ n m (fst a), Some (Slow n m (snd a)))
         | Ehigh n m a => (Ehigh _ _ n m (fst a), Some (Shigh n m (snd a)))
         | EcombineLH n m a b => (EcombineLH _ _ n m (fst a) (fst b), Some (ScombineLH n m (snd a) (snd b)))
+        | Eflt a b => (Eflt _ _ (fst a) (fst b), Some (Sflt (snd a) (snd b)))
+        | Efle a b => (Efle _ _ (fst a) (fst b), Some (Sfle (snd a) (snd b)))
+        | Efadd a b => (Efadd _ _ (fst a) (fst b), Some (Sfadd (snd a) (snd b)))
+        | Efsub a b => (Efsub _ _ (fst a) (fst b), Some (Sfsub (snd a) (snd b)))
+        | Efmul a b => (Efmul _ _ (fst a) (fst b), Some (Sfmul (snd a) (snd b)))
         | Econstant ty c =>  (Econstant c, Some (SConstant _ c)) 
         | Emux t c l r =>                          
             if sval_eqb (snd l) (snd r) 
@@ -350,9 +382,10 @@ Ltac f :=
     | |- context [Tuple.snd ?x] => destruct x; simpl
   end;
   try (congruence || discriminate). 
-Notation "G |= x -- y" := (In _ _ _ x y G) (no associativity, at level 71). 
+Notation "G |= x --- y" := (RTL.In _ _ _ x y G) (no associativity, at level 71). 
 
-Notation R := (fun G t x y => In _ _ t x y G).  
+Notation R := (fun G t x y => RTL.In _ _ t x y G).
+
 
 Definition lift (env : Env eval_type) : list ({t : type & eval_type t}) :=
   List.map (fun x => match x with  existT t (sv,v) => existT _ t v end) env. 
@@ -360,15 +393,15 @@ Definition lift (env : Env eval_type) : list ({t : type & eval_type t}) :=
 Require Seq. 
 Class Gamma_inv (G : Gamma eval_type V) (E : Env eval_type) :=
   {
-    Gamma_inv_1 : forall t (x : eval_type t) y, G |= x -- y -> x = fst y;
-    Gamma_inv_2 : forall t (x: eval_type t) y, G |= x -- y -> eval_sval (lift E) (snd y)  = Some x;
-    Gamma_inv_3 : forall t x sv, Seq.In (existT _ t (sv , x))  E -> G |= x -- (x,sv)
+    Gamma_inv_1 : forall t (x : eval_type t) y, G |= x --- y -> x = fst y;
+    Gamma_inv_2 : forall t (x: eval_type t) y, G |= x --- y -> eval_sval (lift E) (snd y)  = Some x;
+    Gamma_inv_3 : forall t x sv, Seq.In (existT _ t (sv , x))  E -> G |= x --- (x,sv)
   }. 
  
 Hint Resolve Gamma_inv_1 Gamma_inv_2 Gamma_inv_3. 
 
 Lemma Gamma_inv_2' G E (H : Gamma_inv G E) : 
-  forall t (x: eval_type t) y y', G |= x -- (y,y') -> eval_sval (lift E) y'  = Some x. 
+  forall t (x: eval_type t) y y', G |= x --- (y,y') -> eval_sval (lift E) y'  = Some x. 
 Proof. 
   intros. change (y') with (snd (y,y')). eauto. 
 Qed. 
@@ -379,17 +412,17 @@ Ltac use :=
   match goal with 
     | H : Some _ = None |- _ => discriminate
     | H : None = Some _ |- _ => discriminate
-    | H : ?G |= ?x -- ?y |- context [?x] =>
+    | H : ?G |= ?x --- ?y |- context [?x] =>
         rewrite (Gamma_inv_1 _ _ _ H) 
-    | H : ?G |= ?x -- ?y, 
+    | H : ?G |= ?x --- ?y, 
       H' : eval_sval _ (snd ?y) = Some ?z |- context [?z] =>
         progress 
           (assert (x = z) by (pose proof (Gamma_inv_2 _ _ _ H); congruence);
            subst)          
-    | H : ?G |= ?x -- ?y, 
+    | H : ?G |= ?x --- ?y, 
       H' : eval_sval _ (snd ?y) = None |- context [?z] =>
         pose proof (Gamma_inv_2 _ _ _ H); congruence
-    | H : ?G |= ?x -- ?y |- context [eval_sval _ (snd ?y)] =>
+    | H : ?G |= ?x --- ?y |- context [eval_sval _ (snd ?y)] =>
         let p := fresh in 
           assert ( p := Gamma_inv_2 _ _ _ H);
         simpl in p;
@@ -401,7 +434,7 @@ Ltac use :=
 
 Ltac save :=
   repeat match goal with 
-           | H : _ |= _ -- _ |- _ => 
+           | H : _ |= _ --- _ |- _ => 
              pose proof (Gamma_inv_1 _ _ _ H);
              pose proof (Gamma_inv_2 _ _ _ H);
                clear H
@@ -426,7 +459,8 @@ Proof.
   discriminate. 
 Qed. 
 
-Require Import Equality. 
+Require Import Equality.
+Require Import Coq.Program.Equality.
 Definition cast {t t'} (p : t = t') (b : sval  t) : sval (t') :=
   match p in (_ = y) return (sval ( y)) with
     | eq_refl => b
@@ -486,7 +520,7 @@ Lemma cse_expr_correct : forall t e1 r1,
         | None => True
       end.
 Proof. 
-  destruct 1; inversion 1; injectT;  try solve [simpl; auto]; intros; try solve [simpl; repeat use; reflexivity]. 
+  destruct 1; inversion 1; injectT;  try solve [simpl; auto]; intros; try solve [simpl; repeat use; reflexivity].
   - intros. simpl.
     case_eq (sval_eqb (snd l2) (snd r2)). 
     * intros H'. simpl. 
@@ -552,7 +586,7 @@ Lemma lem2  G env t e1 e2 sv :
   Seq.In (existT _ t (sv,e2)) (env) ->
   Gamma_inv G env ->
   eval_sval  (lift env) sv = Some e1 ->
-  G |= e1 -- (e2, sv). 
+  G |= e1 --- (e2, sv). 
 Proof. 
   intros. 
   
@@ -578,12 +612,12 @@ Proof.
   apply (Gamma_inv_3  X0) in H0. 
   apply (Gamma_inv_2  X0) in H0. 
   simpl in *. congruence. 
-Qed. 
+Qed.
 
 Lemma Gamma_inv_cons G env t e sv : 
   Gamma_inv G env ->
   eval_sval (lift env) sv  = Some e ->
-  Gamma_inv (cons eval_type V t e (e,sv) G) env. 
+  Gamma_inv (RTL.cons eval_type V t e (e,sv) G) env. 
 Proof. 
   intros. constructor. 
   - intros ty x y. inversion 1;injectT. reflexivity. eauto. 
@@ -655,7 +689,7 @@ Proof.
 Qed.
 
 Lemma Gamma_inv_cons_var G env (Hg : Gamma_inv  G env) t (e : eval_type t): 
-      Gamma_inv (cons eval_type V t e (e, SVar t (Datatypes.length env)) G)
+      Gamma_inv (RTL.cons eval_type V t e (e, SVar t (Datatypes.length env)) G)
                 (add eval_type t (SVar t (Datatypes.length env)) e env). 
 Proof.
   intros. 
@@ -685,7 +719,7 @@ Qed.
       
 Lemma Gamma_inv_cons_other G env (Hg : Gamma_inv G env) t (e : eval_type t) sv: 
   eval_sval (lift env) sv = Some e ->
-  Gamma_inv (cons eval_type V t e (e, sv) G)
+  Gamma_inv (RTL.cons eval_type V t e (e, sv) G)
             (add eval_type t sv e env). 
 Proof. 
   constructor. 
@@ -700,7 +734,7 @@ Proof.
     apply Seq.In_nil in i; tauto. 
 Qed. 
 
-Lemma Gamma_inv_empty : Gamma_inv  (nil _ _ ) (empty eval_type). 
+Lemma Gamma_inv_empty : Gamma_inv  (RTL.nil _ _ ) (empty eval_type). 
 Proof. 
   constructor. 
   + intros ty x y H; inversion H. 
@@ -741,12 +775,12 @@ Proof.
   Ltac crush :=
     repeat (match goal with 
       | H: (_,_) = (_,_) |- _ => injection H; clear H; intros; subst
-      | Hg : Gamma_inv _ _ _ _ ,  H : In _ _ _ ?x ?y _ |- context [?x] =>
+      | Hg : Gamma_inv _ _ _ _ ,  H : RTL.In _ _ _ ?x ?y _ |- context [?x] =>
         rewrite (Gamma_inv_1  _ _   _ _ _ H)
       | H : DList.T [] |- _ => DList.inversion 
-      | H : DList.T (_ :: _) |- _  => DList.inversion 
-      | H : DList.pointwise _ ( _ :: _) _ _ |- _ => apply DList.inversion_pointwise in H; destruct H
-    end); try reflexivity; try f_equal. 
+      | H : DList.T (RTL.cons _ _) |- _  => DList.inversion 
+      | H : DList.pointwise _ (RTL.cons _ _) _ _ |- _ => apply DList.inversion_pointwise in H; destruct H
+            end); try reflexivity; try f_equal.
   intros e1. destruct e1; intros e2 H; inversion H; injectT; simpl; intros; unfold RTL.R in *; crush.
   
   - case_eq (sval_eqb _  (snd l2) (snd r2)); intros H'; rewrite H' in H0.    

@@ -100,7 +100,7 @@ Ltac intro_do n H :=
       destruct x as [n|] eqn:H; simpl 
   end.
 
-Definition ident := string. 
+Definition ident := String.string. 
 
 Definition comp {A B C} (f : B -> C) (g : A -> B) := fun (x : A) => f (g (x)). 
 Notation "f ∘ g" := (comp f g) (at level 40).
@@ -145,7 +145,7 @@ Section var.
   Lemma var_eqb_correct_1 l t t' (v: var l t ) (v': var l t') : 
     var_eqb v v' = true ->  t = t'.
   Proof. 
-    Require Import Equality. 
+    Require Import Coq.Program.Equality. 
     revert v'. induction v;  dependent destruction v'; simpl; intuition.  
     apply IHv in H. auto. 
   Qed. 

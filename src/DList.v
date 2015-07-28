@@ -234,7 +234,7 @@ Proof.
   induction 2; simpl; intuition; constructor; intuition. 
 Qed.
 
-Require Import Equality.
+Require Import Coq.Program.Equality.
 
 Lemma inversion_dlist_cons {A F} : forall (t : A) q (dl : T F (t :: q)), 
                               {hd : F t & {tl : T F q | dl = (cons hd tl)%dlist}}. 

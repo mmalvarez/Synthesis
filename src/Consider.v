@@ -167,10 +167,10 @@ Section test.
   Require Import NPeano Bool.
 
   Require Import Omega.
-  Goal forall x y z,  (ltb x y && ltb y z) = true ->
+  Goal forall x y z,  (andb (ltb x y) (ltb y z)) = true ->
                  ltb x z = true.
   intros x y z.
-  consider (ltb x y && ltb y z).
+  consider (andb (ltb x y) (ltb y z)).
   consider (ltb x z); auto. intros. exfalso. omega.
   Qed.
 

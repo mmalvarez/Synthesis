@@ -5,8 +5,8 @@ Require Import DList.
 Require Import Core. 
 Require Word Vector. 
 
-
-
+Require Import source.
+  
 (** In order to factorise a bit development, we do not have exactly
 the same definition as the one in the paper, where each primitive is
 inlined in the following action data-type. Instead, with have a
@@ -49,6 +49,13 @@ Section s.
     | Ehigh  : forall n m, expr (Int (n + m)) -> expr (Int m)
     | EcombineLH   : forall n m, expr (Int n) -> expr (Int m) -> expr (Int (n + m))
 
+    (* float operations *)
+    | Eflt  : expr Float -> expr Float -> expr B
+    | Efle  : expr Float -> expr Float -> expr B
+    | Efadd : expr Float -> expr Float -> expr Float
+    | Efsub : expr Float -> expr Float -> expr Float
+    | Efmul : expr Float -> expr Float -> expr Float
+
     | Econstant : forall  ty (c : constant ty), expr ( ty)
                           
     | Emux : forall t, expr B -> expr t -> expr t -> expr t 
@@ -80,7 +87,10 @@ Section s.
   Definition Expr t := forall Var, expr Var t. 
 
   (** * Semantics of [expr] *)
+  Require Import source.
+  Require Import Fappli_IEEE_extra.
 
+  (* floating-point comparison operations *)
   Fixpoint eval_expr (t : type) (e : expr eval_type t) : eval_type t :=
     match e with
       | Evar t v => v
@@ -100,6 +110,14 @@ Section s.
       | Elow n m a => @Word.low n m (eval_expr _ a) 
       | Ehigh n m a => @Word.high n m (eval_expr _ a)
       | EcombineLH n m a b => @Word.combineLH n m (eval_expr _ a) (eval_expr _ b)
+
+      (* float operations *)
+      | Eflt a b => float_lt (eval_expr _ a) (eval_expr _ b)
+      | Efle a b => float_le (eval_expr _ a) (eval_expr _ b)
+      | Efadd a b => float_plus (eval_expr _ a) (eval_expr _ b)
+      | Efsub a b => float_minus (eval_expr _ a) (eval_expr _ b)
+      | Efmul a b => float_mult (eval_expr _ a) (eval_expr _ b)
+                                             
       | Emux t b x y => if eval_expr _ b then eval_expr t x else eval_expr t y
       | Econstant ty c => c
       | Etuple l exprs => 
@@ -173,7 +191,16 @@ Notation "a - b" := (Esub _ _ a b)%expr : expr_scope.
 Notation "a + b" := (Eadd _ _ a b)%expr : expr_scope. 
 Notation "a = b" := (Eeq _ _ a b)%expr : expr_scope. 
 Notation "a < b" := (Elt _ _ a b)%expr : expr_scope. 
-Notation "x <= y" := (Ele _ _ x y)%expr : expr_scope. 
+Notation "x <= y" := (Ele _ _ x y)%expr : expr_scope.
+
+(* NB we could use ⊕ *)
+Notation "a -f- b" := (Efsub _ _ a b)%expr (at level 50) : expr_scope.
+Notation "a +f+ b" := (Efadd _ _ a b)%expr (at level 50) : expr_scope.
+Notation "a *f* b" := (Efmul _ _ a b)%expr (at level 50) : expr_scope.
+Notation "a <f< b" := (Eflt _ _ a b)%expr (at level 50) : expr_scope.
+Notation "a <f= b" := (Efle _ _ a b)%expr (at level 50) : expr_scope.
+
+
 Notation "x <> y" := (~(x = y))%expr : expr_scope. 
 Notation low x := (Elow _ _ _ x).
 Notation high x := (Ehigh _ _ _ x).  

@@ -36,6 +36,13 @@ Section t.
     | Ehigh  : forall n m, Var (Int (n + m)) -> expr (Int m)
     | EcombineLH   : forall n m, Var (Int n) -> Var (Int m) -> expr (Int (n + m))
 
+    (* floating-point operations *)
+    | Eflt : Var Float -> Var Float -> expr B
+    | Efle : Var Float -> Var Float -> expr B
+    | Efadd : Var Float -> Var Float -> expr Float
+    | Efsub : Var Float -> Var Float -> expr Float
+    | Efmul : Var Float -> Var Float -> expr Float
+
     | Econstant : forall ty : type, constant ty -> expr ty
     | Emux : forall t : type,
                Var Tbool ->  Var t -> Var t -> expr  t
@@ -73,8 +80,7 @@ Section t.
     Notation ret x := (telescope_end _ x). 
     Notation " & e " := (telescope_bind _ _ e (fun x => ret x)) (at level 71). 
     Notation "x :- e1 ; e2" := (telescope_bind  _ _  e1 (fun x => e2)) (right associativity, at level 80, e1 at next level).  
-    
-    
+
     Fixpoint compile_expr t (e : Front.expr Var t) : telescope (Var t) :=
       match e with
         | Front.Evar t v => ret v
@@ -104,6 +110,21 @@ Section t.
         | Front.Esub n a b => a :-- compile_expr _ a; 
                               b :-- compile_expr _ b; 
                               & (Esub _ a b)
+        | Front.Eflt a b => a :-- compile_expr _ a;
+                            b :-- compile_expr _ b;
+                            & (Eflt a b)
+        | Front.Efle a b => a :-- compile_expr _ a;
+                            b :-- compile_expr _ b;
+                            & (Efle a b)
+        | Front.Efadd a b => a :-- compile_expr _ a;
+                             b :-- compile_expr _ b;
+                             & (Efadd a b)
+        | Front.Efsub a b => a :-- compile_expr _ a;
+                             b :-- compile_expr _ b;
+                             & (Efsub a b)
+        | Front.Efmul a b => a :-- compile_expr _ a;
+                             b :-- compile_expr _ b;
+                             & (Efmul a b)
         | Front.Elow n m a => a :-- compile_expr _ a; 
                              & (Elow n m a) 
         | Front.Ehigh n m a => a :-- compile_expr _ a; 
@@ -216,6 +237,8 @@ Section t.
   Section sem. 
     
     Variable st : Core.eval_state Phi. 
+
+    
     
     Definition eval_expr (t : Core.type) (e : expr Core.eval_type t) : Core.eval_type t:=
       match e with
@@ -235,7 +258,12 @@ Section t.
         | Eadd n a b => Word.add a b 
         | Esub n a b => Word.sub a b 
         | Elow n m a =>  Word.low n m a  
-        | Ehigh n m a => Word.high n m a 
+        | Ehigh n m a => Word.high n m a
+        | Eflt a b => source.float_lt a b
+        | Efle a b => source.float_le a b
+        | Efadd a b => source.float_plus a b
+        | Efsub a b => source.float_minus a b
+        | Efmul a b => source.float_mult a b
         | EcombineLH n m a b  =>  Word.combineLH n m  a b
         | Emux t b x y => if b then x else y 
         | Econstant ty c => c
@@ -311,6 +339,7 @@ Notation " & e " := (telescope_end _   _ _ e) (at level 71).
 
 Section correctness. 
   Import Equality.
+  Import Coq.Program.Equality.
   
   Lemma compile_effects_correct Phi st   e : 
     forall Delta, 
@@ -407,19 +436,19 @@ Section correctness.
   Qed. 
 End correctness. 
 
-
 Section equiv. 
   Import Core. 
   Variable U V : type -> Type. 
   Variable Phi : state. 
 
-  Reserved Notation "x == y" (at level 70, no associativity). 
-  Reserved Notation "x ==e y" (at level 70, no associativity). 
+  (* TODO - should these be local? --M *)
+  Local Reserved Notation "x == y" (at level 70, no associativity). 
+  Local Reserved Notation "x ==e y" (at level 70, no associativity). 
   
   Section inner_equiv. 
   Variable R : forall t, U t -> V t -> Type. 
-  Notation "x -- y" := (R _ x y) (at level 70, no associativity). 
-    
+  Notation "x -- y" := (R _ x y) (at level 70, no associativity).
+
   Inductive expr_equiv : forall t,  expr Phi U t -> expr Phi V t -> Type :=
   | Eq_read : forall t v, Eread Phi U t v == Eread Phi V t v
   | Eq_read_rf : forall n t v adr1 adr2, 
@@ -446,7 +475,17 @@ Section equiv.
   | Eq_high : forall n m a1 a2,  a1 -- a2 -> 
                             Ehigh Phi U n m a1 == Ehigh Phi V n m a2
   | Eq_combineLH : forall n m a1 a2 b1 b2,  a1 -- a2 -> b1 -- b2 -> 
-                            EcombineLH Phi U n m a1 b1 == EcombineLH Phi V n m a2 b2
+                                       EcombineLH Phi U n m a1 b1 == EcombineLH Phi V n m a2 b2
+  | Eq_flt : forall a1 a2 b1 b2, a1 -- a2 -> b1 -- b2 ->
+                            Eflt Phi U a1 b1 == Eflt Phi V a2 b2
+  | Eq_fle : forall a1 a2 b1 b2, a1 -- a2 -> b1 -- b2 ->
+                            Efle Phi U a1 b1 == Efle Phi V a2 b2
+  | Eq_fadd : forall a1 a2 b1 b2, a1 -- a2 -> b1 -- b2 ->
+                             Efadd Phi U a1 b1 == Efadd Phi V a2 b2
+  | Eq_fsub : forall a1 a2 b1 b2, a1 -- a2 -> b1 -- b2 ->
+                             Efsub Phi U a1 b1 == Efsub Phi V a2 b2
+  | Eq_fmul : forall a1 a2 b1 b2, a1 -- a2 -> b1 -- b2 ->
+                             Efmul Phi U a1 b1 == Efmul Phi V a2 b2
   | Eq_constant : forall ty c, Econstant Phi U ty c == Econstant Phi V ty c
   | Eq_mux : forall t c1 c2 l1 l2 r1 r2, 
                c1 -- c2 -> l1 -- l2 -> r1 -- r2 -> 

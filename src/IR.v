@@ -375,14 +375,14 @@ Section t.
     Notation C := (compile_inner eval_type tt). 
     Lemma eval_andb_true x y : (eval_expr Tbool (andb eval_type x y)) = (eval_expr Tbool x && eval_expr Tbool y)%bool.
     Proof. 
-      Import Equality Bool. 
-      
+      Import Coq.Program.Equality Bool.
       dependent destruction x; dependent destruction y; simpl;
       repeat match goal with 
                  c : constant B |- _ => destruct c
                | x : eval_type Tbool |- _ => destruct x
                | _ => idtac
-             end; rewrite ?andb_true_r, ?andb_true_l, ?andb_false_l , ?andb_false_r ; reflexivity.  
+             end; rewrite ?Bool.andb_true_r, ?Bool.andb_true_l, ?Bool.andb_false_l,
+                  ?Bool.andb_false_r; reflexivity.
     Qed. 
 
     Lemma eval_orb_true x y : (eval_expr Tbool (orb eval_type x y)) = (eval_expr Tbool x || eval_expr Tbool y)%bool.
@@ -394,7 +394,7 @@ Section t.
                  c : constant B |- _ => destruct c
                | x : eval_type Tbool |- _ => destruct x
                | _ => idtac
-             end; rewrite ?orb_true_r, ?orb_true_l, ?orb_false_l , ?orb_false_r ; reflexivity.  
+             end; rewrite ?Bool.orb_true_r, ?Bool.orb_true_l, ?Bool.orb_false_l , ?Bool.orb_false_r ; reflexivity.  
     Qed. 
 
 
@@ -592,7 +592,7 @@ Section correctness2.
   Ltac v := match goal with 
                 |- context [match ?X with  | ( _ , _  )  => _ end ] => destruct X 
             end. 
-  Import Equality. 
+  Import Coq.Program.Equality. 
   Ltac d := match goal with 
               | H : context [match ?X with | _ => _ end] |- _ => dependent destruction X
               |  |- context [match ?X with | _ => _ end] => case_eq  X; intros; subst; simpl
