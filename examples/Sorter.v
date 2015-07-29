@@ -1,5 +1,6 @@
 Add Rec LoadPath "../src/" as Synthesis. Require Import Common Core Front ZArith Structures. 
 
+Require Import Coq.Program.Equality.
 
 Section t. 
   Variable A : Type. 
@@ -132,7 +133,7 @@ Module Spec.
     Proof. 
       unfold equiv. simpl. intros. rewrite Permutation_app_comm.  apply Permutation_app; auto. 
     Qed. 
-    Require Import Equality. 
+
     Notation "x == y" := (Permutation x y) (at level 70).
     Require Import Morphisms. 
 
@@ -409,8 +410,8 @@ Module Spec.
                | H : label ?t = ?l |- _ => rewrite H; clear H
              end; reflexivity. 
   Qed. 
-  
-  Section mms. 
+
+  Section mms.
     (** Some proofs about the min_max_swap function *)  
     
     Lemma tree_O_inversion : forall t : tree bool 0, exists x, t = L  x. 
@@ -989,7 +990,8 @@ Module Spec.
           rewrite List'Forall_commute. constructor. auto. 
           rewrite List'Forall_commute. apply H3. 
       Qed. 
-      
+
+      Require Import Coq.Program.Equality.
       Lemma Tree'Forall_List'Forall A (P : A -> Prop) (Q : A -> bool) 
             (IH : forall a, Q a = true -> P a):
         forall n (t : tree A n),

@@ -46,8 +46,8 @@ Fixpoint assoc {A B} (eq: A -> A ->  bool) x l : option B :=
     | cons (u,v) q => if eq x u then Some v else assoc eq x q
   end. 
 
-Require Import FMapPositive FMapAVL OrderedTypeAlt.
-Require FMapFacts. 
+Require Import Coq.FSets.FMapPositive FMapAVL OrderedTypeAlt.
+Require FMapFacts.
 Module PMap := PositiveMap.
 Module PMapFacts := FMapFacts.Facts(PMap).
 

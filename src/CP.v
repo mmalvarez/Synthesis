@@ -62,6 +62,11 @@ Section t.
             | Elow n m a => (Elow _ _ n m (fst a), !!)
             | Ehigh n m a => (Ehigh _ _ n m (fst a), !!)
             | EcombineLH n m a b => (EcombineLH _ _ n m (fst a) (fst b), !!)
+            | Eflt a b => (Eflt _ _ (fst a) (fst b), !!)
+            | Efle a b => (Efle _ _ (fst a) (fst b), !!)
+            | Efadd a b => (Efadd _ _ (fst a) (fst b), !!)
+            | Efsub a b => (Efsub _ _ (fst a) (fst b), !!)
+            | Efmul a b => (Efmul _ _ (fst a) (fst b), !!)
             | Econstant t x => 
                 match t as ty return constant ty -> (expr Phi Var ty * option bexpr) with
                   | Tbool => fun c => if ( c : bool)

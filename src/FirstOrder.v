@@ -1,7 +1,7 @@
 (** * Synthesis.FirstOrder : First-order representation of RTL *)
 
 Require Import Common DList. 
-Require Core Equality. 
+Require Core Coq.Program.Equality. 
 
 Require Import Eqdep. 
 
@@ -38,7 +38,11 @@ Fixpoint sum l : nat :=
   end. 
 
 Section t. 
-  Context {Phi : list mem}. 
+  Context {Phi : list mem}.
+
+  (* length constants for our floating-point format (IEEE-754 single-precision) *)
+  Definition float_len : nat := 32%nat.
+  
   Inductive expr : type -> Type :=
   | E_var : forall t, wire t -> expr t
   | E_input : forall t, var Phi (Tinput t) -> expr t
@@ -56,6 +60,11 @@ Section t.
   | E_minus : forall n, wire n -> wire n -> expr n 
   | E_low : forall n m, wire (n + m) -> expr n
   | E_high : forall n m, wire (n + m) -> expr m
+  | E_flt : wire float_len -> wire float_len -> expr 1
+  | E_fle : wire float_len -> wire float_len -> expr 1
+  | E_fadd : wire float_len -> wire float_len -> expr float_len
+  | E_fsub : wire float_len -> wire float_len -> expr float_len
+  | E_fmul : wire float_len -> wire float_len -> expr float_len
   | E_combineLH : forall n m, wire n -> wire m -> expr (n + m)
   | E_constant : forall n, Word.T n -> expr n
   | E_nth: forall l t, var l t -> wire (sum l) -> expr t
@@ -171,12 +180,12 @@ End t.
 Implicit Arguments expr [].
 Arguments expr Phi _. 
 
-
 Fixpoint compile_type (t : Core.type) :  type :=
   match t with 
     | Core.Tunit => 0
     | Core.Tbool => 1
     | Core.Tint n => n
+    | Core.Tfloat => float_len
     | Core.Ttuple l => sum (List.map compile_type l)
   end.
 
@@ -199,6 +208,26 @@ Section s.
   Notation "[ l @2]" := (! (DList.hd (DList.tl l))). 
   Notation "[ l @3]" := (! (DList.hd (DList.tl (DList.tl l)))). 
 
+  Print Word.repr.
+
+  (* for our floating-point format *)
+  Require Import source.
+  Require Import Fappli_IEEE Fappli_IEEE_extra.
+  Require Import ZArith.BinInt.
+
+  (* Params to bits_of_binary_float and its inverese are a bit odd.
+       First parameter is 1 less than prec
+       Second is exponent width: that is, (log_2 emax) + 1
+     --M
+   *)
+  Definition precMinus1 := Eval compute in (prec - 1)%Z.
+  Definition expWidth := Eval compute in ((Z.log2 emax) + 1)%Z.
+  
+  Definition bits_of_float : float -> Z :=
+    Fappli_IEEE_bits.bits_of_binary_float precMinus1 expWidth.
+
+  Definition float_of_bits : Z -> float :=
+    Fappli_IEEE_bits.binary_float_of_bits precMinus1 expWidth (eq_refl _) (eq_refl _) (eq_refl _).
   
   Definition compile_constant :=
     fix compile_constant (ty : Core.type) (c : @Core.Generics.constant _ Core.eval_type ty) : Word.T (compile_type ty) := 
@@ -206,16 +235,18 @@ Section s.
       | Core.Tunit => fun _ => Word.repr 0 0
       | Core.Tbool => fun (x: bool) => if x then Word.repr 1 1 else Word.repr 1 0
       | Core.Tint n => fun x => x
+      | Core.Tfloat => fun (x : binary_float custom_prec custom_emax) =>
+                        Word.repr float_len (bits_of_float x)
       | Core.Ttuple l => fun x => 
                           let fold :=
                               fix fold l : Core.Generics.constant (Core.Ttuple l) -> 
                                            Word.T (compile_type (Core.Ttuple l)):= 
-    match l with 
-      | nil => fun x => Word.repr 0 0
-      | cons t q => fun x =>  Word.combineLH _ _ 
-                                           (compile_constant t (fst x)) 
-                                           (fold q (snd x))
-    end
+                                match l with 
+                                | nil => fun x => Word.repr 0 0
+                                | cons t q => fun x =>  Word.combineLH _ _ 
+                                                                   (compile_constant t (fst x)) 
+                                                                   (fold q (snd x))
+                                end
                           in 
                           fold l x                            
     end c. 
@@ -233,11 +264,16 @@ Section s.
       | RTL.Enegb  a  => E_negb (!a)
       | RTL.Eeq t a b => E_eq _ (!a) (!b) 
       | RTL.Elt n a b => E_lt _ (!a) (!b) 
-      | RTL.Ele n a b => E_le _ (!a) (!b) 
+      | RTL.Ele n a b => E_le _ (!a) (!b)
       | RTL.Eadd n  a b => E_plus _ (!a) (!b)
       | RTL.Esub n  a b => E_minus _ (!a) (!b)
       | RTL.Elow n m a => E_low n m (!a)
       | RTL.Ehigh n m a => E_high n m (!a)
+      | RTL.Eflt a b => E_flt (!a) (!b)
+      | RTL.Efle a b => E_fle (!a) (!b)
+      | RTL.Efadd a b => E_fadd (!a) (!b)
+      | RTL.Efsub a b => E_fsub (!a) (!b)
+      | RTL.Efmul a b => E_fadd (!a) (!b)
       | RTL.EcombineLH n m a b => E_combineLH n m (!a) (!b)
       | RTL.Econstant ty c => E_constant _ (compile_constant _ c)
       | RTL.Emux t cond l r => E_mux _ (!cond) (!l) (!r)

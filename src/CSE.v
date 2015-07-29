@@ -777,7 +777,7 @@ Proof.
       | H: (_,_) = (_,_) |- _ => injection H; clear H; intros; subst
       | Hg : Gamma_inv _ _ _ _ ,  H : RTL.In _ _ _ ?x ?y _ |- context [?x] =>
         rewrite (Gamma_inv_1  _ _   _ _ _ H)
-      | H : DList.T [] |- _ => DList.inversion 
+      | H : DList.T RTL.nil |- _ => DList.inversion 
       | H : DList.T (RTL.cons _ _) |- _  => DList.inversion 
       | H : DList.pointwise _ (RTL.cons _ _) _ _ |- _ => apply DList.inversion_pointwise in H; destruct H
             end); try reflexivity; try f_equal.
@@ -788,7 +788,7 @@ Proof.
             
       Ltac save :=
         repeat match goal with 
-          | H : In _ _ _ _ _ _ |- _ =>
+          | H : RTL.In _ _ _ _ _ _ |- _ =>
               pose proof (Gamma_inv_1 _ _ _ _ _ H);
               pose proof (Gamma_inv_2 _ _  _ _ _ H);
               clear H
@@ -826,11 +826,11 @@ Proof.
   Ltac crush ::=
     repeat (match goal with 
       | H: (_,_) = (_,_) |- _ => injection H; clear H; intros; subst
-      | Hg : Gamma_inv _ _ _ _ ,  H : In _ _ _ ?x ?y _ |- context [?x] =>
+      | Hg : Gamma_inv _ _ _ _ ,  H : RTL.In _ _ _ ?x ?y _ |- context [?x] =>
         rewrite (Gamma_inv_1  _ _  _ _ _ H)
-      | H : DList.T [] |- _ => DList.inversion 
-      | H : DList.T (_ :: _) |- _  => DList.inversion 
-      | H : DList.pointwise _ ( _ :: _) _ _ |- _ => apply DList.inversion_pointwise in H; destruct H
+      | H : DList.T RTL.nil |- _ => DList.inversion 
+      | H : DList.T (RTL.cons _ _) |- _  => DList.inversion 
+      | H : DList.pointwise _ (RTL.cons _ _) _ _ |- _ => apply DList.inversion_pointwise in H; destruct H
       | |- Some _ = Some _ => f_equal
       | |- (_,_) = (_,_) => f_equal
       | |- context [eval_type _] => simpl eval_type
